@@ -23,12 +23,12 @@ from tqdm import tqdm
 # In[0]
 
 def read_data(FLAGS):
-    train_file_face = '../feats/%s/%s_feats/%s_faces_train.csv'%(FLAGS.ver, FLAGS.train_lang, FLAGS.train_lang)
-    train_file_voice = '../feats/%s/%s_feats/%s_voices_train.csv'%(FLAGS.ver, FLAGS.train_lang, FLAGS.train_lang)
+    train_file_face = './feats/%s/%s_feats/%s_faces_train.csv'%(FLAGS.ver, FLAGS.train_lang, FLAGS.train_lang)
+    train_file_voice = './feats/%s/%s_feats/%s_voices_train.csv'%(FLAGS.ver, FLAGS.train_lang, FLAGS.train_lang)
     
     print('Reading Train Faces')
     img_train = pd.read_csv(train_file_face, header=None)
-    train_label = img_train[-1]
+    train_label = img_train.iloc[:, -1]
     img_train = np.asarray(img_train)
     img_train = img_train[:, :-1]
     train_label = np.asarray(train_label)
@@ -50,8 +50,8 @@ def read_data(FLAGS):
     random.shuffle(combined)
     img_train[:], voice_train, train_label[:] = zip(*combined)
     combined = [] 
-    img_train = np.asarray(img_train).astype(np.float)
-    voice_train = np.asarray(voice_train).astype(np.float)
+    img_train = np.asarray(img_train).astype(float)
+    voice_train = np.asarray(voice_train).astype(float)
     train_label = np.asarray(train_label)
     
     
@@ -121,7 +121,7 @@ def main(face_train, voice_train, train_label, face_test, voice_test):
     print('  + Number of params: {}'.format(n_parameters))
     
     eer_list = []
-    epoch=1
+    epoch = 1
     num_of_batches = (len(train_label) // FLAGS.batch_size)
     loss_plot = []
     auc_list = []
@@ -255,8 +255,8 @@ if __name__ == '__main__':
     parser.add_argument('--cuda', action='store_true', default=True, help='CUDA Training')
     parser.add_argument('--lr', type=float, default=1e-2, metavar='LR',
                         help='learning rate (default: 1e-4)')
-    parser.add_argument('--ver', default='v1', type=str, help='Dataset version')
-    parser.add_argument('--train_lang', default='Urdu', type=str, help='Training language')
+    parser.add_argument('--ver', default='v2', type=str, help='Dataset version') # original v1
+    parser.add_argument('--train_lang', default='English', type=str, help='Training language') # original Urdu
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training.')
     parser.add_argument('--epochs', type=int, default=50, help='Max number of epochs to train, number')
     parser.add_argument('--alpha', type=list, default=1, help='Alpha Values List')
