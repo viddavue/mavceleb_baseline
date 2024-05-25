@@ -25,8 +25,8 @@ import wandb
 # In[0]
 
 def read_data(FLAGS):
-    train_file_face = '/share/hel/datasets/FOP/%s/%s_feats/%s_faces_train.csv'%(FLAGS.ver, FLAGS.train_lang, FLAGS.train_lang)
-    train_file_voice = '/share/hel/datasets/FOP/%s/%s_feats/%s_voices_train.csv'%(FLAGS.ver, FLAGS.train_lang, FLAGS.train_lang)
+    train_file_face = '../feats/%s/%s_feats/%s_faces_train.csv' % (FLAGS.ver, FLAGS.train_lang, FLAGS.train_lang)
+    train_file_voice = '../feats/%s/%s_feats/%s_voices_train.csv' % (FLAGS.ver, FLAGS.train_lang, FLAGS.train_lang)
     
     print('Reading Train Faces')
     img_train = pd.read_csv(train_file_face, header=None)

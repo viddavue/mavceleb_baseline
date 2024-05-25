@@ -18,8 +18,8 @@ from scipy import interpolate
 
 def read_data(FLAGS):
     
-    test_file_face = '/share/hel/datasets/FOP/%s/%s_feats/%s_faces_test.csv'%(FLAGS.ver, FLAGS.train_lang, FLAGS.test_lang)
-    test_file_voice = '/share/hel/datasets/FOP/%s/%s_feats/%s_voices_test.csv'%(FLAGS.ver, FLAGS.train_lang, FLAGS.test_lang)
+    test_file_face = './feats/%s/%s_feats/%s_faces_test.csv'%(FLAGS.ver, FLAGS.train_lang, FLAGS.test_lang)
+    test_file_voice = './feats/%s/%s_feats/%s_voices_test.csv'%(FLAGS.ver, FLAGS.train_lang, FLAGS.test_lang)
     
     print('Reading Test Face')
     face_test = pd.read_csv(test_file_face, header=None)
