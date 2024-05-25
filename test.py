@@ -18,8 +18,8 @@ from scipy import interpolate
 
 def read_data(FLAGS):
     
-    test_file_face = './feats/%s/%s_feats/%s_faces_test.csv'%(FLAGS.ver, FLAGS.train_lang, FLAGS.test_lang)
-    test_file_voice = './feats/%s/%s_feats/%s_voices_test.csv'%(FLAGS.ver, FLAGS.train_lang, FLAGS.test_lang)
+    test_file_face = '/share/hel/datasets/FOP/%s/%s_feats/%s_faces_test.csv'%(FLAGS.ver, FLAGS.train_lang, FLAGS.test_lang)
+    test_file_voice = '/share/hel/datasets/FOP/%s/%s_feats/%s_voices_test.csv'%(FLAGS.ver, FLAGS.train_lang, FLAGS.test_lang)
     
     print('Reading Test Face')
     face_test = pd.read_csv(test_file_face, header=None)
@@ -172,8 +172,14 @@ def test(face_test, voice_test):
     
     n_class = 64 if FLAGS.ver == 'v1' else 78
     model = FOP(FLAGS, face_test.shape[1], voice_test.shape[1], n_class)
-    ckpt = '%s_models/%s_fop_model/checkpoint.pth.tar'%(FLAGS.ver, FLAGS.train_lang)
-    
+
+    if FLAGS.use_provided_models:
+        ckpt = '%s_models/%s_fop_model/checkpoint.pth.tar'%(FLAGS.ver, FLAGS.train_lang)
+    else:
+        # adjust model path accordingly
+        alpha = f"{FLAGS.alpha:.2f}"
+        ckpt = 'best_%s_%s_gated_alpha_%s/checkpoint.pth.tar'%(FLAGS.ver, FLAGS.train_lang, alpha)
+
     checkpoint = torch.load(ckpt)
     model.load_state_dict(checkpoint['state_dict'])
     print("=> loaded checkpoint '{}' )"
@@ -222,11 +228,14 @@ if __name__ == '__main__':
     parser.add_argument('--cuda', action='store_true', default=False, help='CUDA training')
     parser.add_argument('--dim_embed', type=int, default=128,
                         help='Embedding Size')
-    parser.add_argument('--ver', default='v1', type=str)
-    parser.add_argument('--train_lang', type=str, default='Urdu', help='Model trained language')
-    parser.add_argument('--test_lang', type=str, default='English', help='Testing language: English, Hindi')
+    parser.add_argument('--ver', default='v2', type=str)
+    parser.add_argument('--train_lang', type=str, default='English', help='Model trained language')
+    parser.add_argument('--test_lang', type=str, default='Hindi', help='Testing language: English, Hindi')
     parser.add_argument('--fusion', type=str, default='gated', help='Fusion Type')
-    
+    parser.add_argument('--alpha', type=float, default=1, help='The value for alpha used to train the model.')
+    parser.add_argument('--use_provided_models', type=bool, default=False, help='Use the models provided in the repo '
+                                                                               'and not the self-trained models.')
+
     global FLAGS
     FLAGS, unparsed = parser.parse_known_args()
     FLAGS.cuda = torch.cuda.is_available()

@@ -20,11 +20,13 @@ import torch.nn as nn
 import online_evaluation
 from tqdm import tqdm
 
+import wandb
+
 # In[0]
 
 def read_data(FLAGS):
-    train_file_face = './feats/%s/%s_feats/%s_faces_train.csv'%(FLAGS.ver, FLAGS.train_lang, FLAGS.train_lang)
-    train_file_voice = './feats/%s/%s_feats/%s_voices_train.csv'%(FLAGS.ver, FLAGS.train_lang, FLAGS.train_lang)
+    train_file_face = '/share/hel/datasets/FOP/%s/%s_feats/%s_faces_train.csv'%(FLAGS.ver, FLAGS.train_lang, FLAGS.train_lang)
+    train_file_voice = '/share/hel/datasets/FOP/%s/%s_feats/%s_voices_train.csv'%(FLAGS.ver, FLAGS.train_lang, FLAGS.train_lang)
     
     print('Reading Train Faces')
     img_train = pd.read_csv(train_file_face, header=None)
@@ -62,7 +64,7 @@ def read_data(FLAGS):
 print('Training')
 from retrieval_model import FOP
 
-os.environ['CUDA_VISIBLE_DEVICES'] = "0,1"
+# os.environ['CUDA_VISIBLE_DEVICES'] = "0"
  
 def get_batch(batch_index, batch_size, labels, f_lst):
     start_ind = batch_index * batch_size
@@ -122,10 +124,13 @@ def main(face_train, voice_train, train_label, face_test, voice_test):
     
     eer_list = []
     epoch = 1
+    best_epoch = 0
     num_of_batches = (len(train_label) // FLAGS.batch_size)
     loss_plot = []
     auc_list = []
     loss_per_epoch = 0
+    opl_loss_per_epoch = 0
+    soft_loss_per_epoch = 0
     save_dir = '%s_%s_%s_alpha_%0.2f'%(FLAGS.ver, FLAGS.train_lang, FLAGS.fusion, FLAGS.alpha)
     
     if not os.path.exists(save_dir):
@@ -143,14 +148,24 @@ def main(face_train, voice_train, train_label, face_test, voice_test):
             loss_tmp, loss_opl, loss_soft, s_fac, d_fac = train(face_feats, voice_feats, 
                                                          batch_labels, 
                                                          model, optimizer, ce_loss, opl_loss, FLAGS.alpha)
+
             loss_per_epoch+=loss_tmp
+            opl_loss_per_epoch+=loss_opl
+            soft_loss_per_epoch+=loss_soft
         
         loss_per_epoch/=num_of_batches
+        opl_loss_per_epoch/=num_of_batches
+        soft_loss_per_epoch/=num_of_batches
         
         loss_plot.append(loss_per_epoch)
         eer, auc = online_evaluation.test(FLAGS, model, face_test, voice_test)
         eer_list.append(eer)
         auc_list.append(auc)
+
+        wandb.log({'Loss': loss_per_epoch, 'OPL Loss': opl_loss_per_epoch, 'Soft Loss': soft_loss_per_epoch,
+                   'EER': eer, 'AUC': auc},
+                  step=epoch)
+
         save_checkpoint({
             'epoch': epoch,
             'state_dict': model.state_dict()}, save_dir, 'checkpoint_%04d_%0.3f.pth.tar'%(epoch, eer*100))
@@ -160,6 +175,7 @@ def main(face_train, voice_train, train_label, face_test, voice_test):
         if eer <= min(eer_list):
             min_eer = eer
             max_auc = auc
+            best_epoch = epoch
             save_checkpoint({
             'epoch': epoch,
             'state_dict': model.state_dict()}, save_best, 'checkpoint.pth.tar')
@@ -167,7 +183,7 @@ def main(face_train, voice_train, train_label, face_test, voice_test):
         loss_per_epoch = 0
         epoch += 1
             
-    return loss_plot, min_eer, max_auc
+    return loss_plot, min_eer, max_auc, best_epoch
     
 class OrthogonalProjectionLoss(nn.Module):
     def __init__(self):
@@ -253,23 +269,42 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=1, metavar='S', help='Random Seed')
     parser.add_argument('--cuda', action='store_true', default=True, help='CUDA Training')
-    parser.add_argument('--lr', type=float, default=1e-2, metavar='LR',
+    parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',  # 1e-2
                         help='learning rate (default: 1e-4)')
     parser.add_argument('--ver', default='v2', type=str, help='Dataset version') # original v1
     parser.add_argument('--train_lang', default='English', type=str, help='Training language') # original Urdu
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training.')
     parser.add_argument('--epochs', type=int, default=50, help='Max number of epochs to train, number')
-    parser.add_argument('--alpha', type=list, default=1, help='Alpha Values List')
+    parser.add_argument('--alpha', type=float, default=1, help='Alpha value')
     parser.add_argument('--dim_embed', type=int, default=128,
                         help='Embedding Size')
     parser.add_argument('--fusion', type=str, default='gated', help='Fusion Type')
 
     global FLAGS
     FLAGS, unparsed = parser.parse_known_args()
+
+    wandb.init(project='FOP', name=f'{FLAGS.train_lang}_{FLAGS.epochs}_alpha={FLAGS.alpha}',
+               config={
+                     'batch_size': FLAGS.batch_size,
+                     'epochs': FLAGS.epochs,
+                     'alpha': FLAGS.alpha,
+                     'lr': FLAGS.lr,
+                     'dim_embed': FLAGS.dim_embed,
+                     'fusion': FLAGS.fusion,
+                     'ver': FLAGS.ver,
+                     'train_lang': FLAGS.train_lang,
+                     'seed': FLAGS.seed,
+               })
+    print(FLAGS)
+
     torch.manual_seed(FLAGS.seed)
     if FLAGS.cuda and torch.cuda.is_available():
         torch.cuda.manual_seed(FLAGS.seed)
         
     face_train, voice_train, train_label = read_data(FLAGS)
     face_test, voice_test = online_evaluation.read_data(FLAGS.ver, FLAGS.train_lang)
-    main(face_train, voice_train, train_label, face_test, voice_test)
+    loss_plot, min_eer, max_auc, best_epoch = main(face_train, voice_train, train_label, face_test, voice_test)
+
+    print('Minimum EER: %0.2f, Maximum AUC: %0.2f at Epoch: %d'%(min_eer, max_auc, best_epoch))
+
+    wandb.log({'Min EER': min_eer, 'Max AUC': max_auc, 'Best Epoch': best_epoch})
